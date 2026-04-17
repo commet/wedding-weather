@@ -470,23 +470,23 @@ body{{
   background:{vb};
   border:1.5px solid {vc}20;
   margin:-12px 16px 0;border-radius:var(--r);
-  padding:22px 20px 18px;text-align:center;
+  padding:14px 18px 12px;text-align:center;
   position:relative;z-index:2;
   box-shadow:var(--sh);
 }}
-.v-emoji{{font-size:36px;margin-bottom:6px}}
-.v-msg{{font-size:19px;font-weight:700;color:{vc};line-height:1.3}}
-.v-sub{{font-size:13px;color:{vc}CC;margin-top:4px;font-weight:500}}
+.v-emoji{{font-size:26px;margin-bottom:2px}}
+.v-msg{{font-size:17px;font-weight:700;color:{vc};line-height:1.3}}
+.v-sub{{font-size:12px;color:{vc}CC;margin-top:2px;font-weight:500}}
 .v-stats{{
   display:flex;justify-content:center;gap:16px;
-  margin-top:14px;padding-top:14px;
+  margin-top:10px;padding-top:10px;
   border-top:1px solid {vc}15;
 }}
 .v-stat{{text-align:center}}
-.v-stat-num{{font-size:18px;font-weight:800;color:var(--tx)}}
-.v-stat-label{{font-size:10px;color:var(--tx2);font-weight:500;margin-top:1px}}
+.v-stat-num{{font-size:16px;font-weight:800;color:var(--tx)}}
+.v-stat-label{{font-size:10px;color:var(--tx2);font-weight:500;margin-top:0}}
 .v-advice{{
-  font-size:12px;color:var(--tx2);margin-top:12px;
+  font-size:11px;color:var(--tx2);margin-top:8px;
   font-weight:500;font-style:italic;
 }}
 
