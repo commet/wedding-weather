@@ -172,9 +172,14 @@ def _parse_accu(text):
     mc = re.search(r'class="phrase">([^<]+)', card)
     if not mh:
         return None
+    # 영문 페이지는 화씨(°F) → 섭씨(°C) 변환
+    hi_f = float(mh.group(1))
+    lo_f = float(ml.group(1)) if ml else None
+    hi_c = round((hi_f - 32) * 5 / 9, 1)
+    lo_c = round((lo_f - 32) * 5 / 9, 1) if lo_f is not None else None
     return {
-        "temp_max": float(mh.group(1)),
-        "temp_min": float(ml.group(1)) if ml else None,
+        "temp_max": hi_c,
+        "temp_min": lo_c,
         "rain_prob": int(mp.group(1)) if mp else None,
         "condition": html_mod.unescape(mc.group(1).strip()) if mc else None,
     }
@@ -345,20 +350,30 @@ def render(openmeteo, naver, accuweather, kma):
             ("네이버", nd, LINKS["naver"])]
 
     rains = [s[1]["rain_prob"] for s in srcs if s[1] and s[1].get("rain_prob") is not None]
-    tlo = [s[1]["temp_min"] for s in srcs if s[1] and s[1].get("temp_min") is not None]
-    thi = [s[1]["temp_max"] for s in srcs if s[1] and s[1].get("temp_max") is not None]
     mrain = max(rains) if rains else (openmeteo["rain_prob"] if openmeteo else None)
     vt, vsub, vc, vb = verdict(mrain)
-    lo = min(tlo) if tlo else (openmeteo["temp_min"] if openmeteo else None)
-    hi = max(thi) if thi else (openmeteo["temp_max"] if openmeteo else None)
-    tr = f"{lo:.0f}° ~ {hi:.0f}°C" if lo is not None and hi is not None else "-"
-    tadvice = temp_advice(lo, hi) if lo is not None else ""
 
+    # 12~13시 시간대 기온/바람/습도 (결혼식 시간)
+    noon_temp = ""
     wind_str = ""
+    humidity_str = ""
     if openmeteo and openmeteo.get("hours"):
         h12 = next((h for h in openmeteo["hours"] if h["hour"] == 12), None)
-        if h12:
+        h13 = next((h for h in openmeteo["hours"] if h["hour"] == 13), None)
+        if h12 and h13:
+            avg_t = (h12["temp"] + h13["temp"]) / 2
+            noon_temp = f"{avg_t:.0f}°C"
+            wind_str = f'{max(h12["wind"], h13["wind"]):.0f}km/h'
+            humidity_str = f'{int((h12["humidity"] + h13["humidity"]) / 2)}%'
+        elif h12:
+            noon_temp = f'{h12["temp"]:.0f}°C'
             wind_str = f'{h12["wind"]:.0f}km/h'
+            humidity_str = f'{h12["humidity"]}%'
+
+    tadvice = ""
+    if noon_temp:
+        t = float(noon_temp.replace("°C", ""))
+        tadvice = temp_advice(t - 3, t + 3)
 
     # Source count
     ok_count = sum(1 for _, d, _ in srcs if d)
@@ -423,6 +438,9 @@ def render(openmeteo, naver, accuweather, kma):
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="refresh" content="10800">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#3D6B4D">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -636,9 +654,10 @@ body{{
   <div class="v-msg">{vt}</div>
   <div class="v-sub">{vsub}</div>
   <div class="v-stats">
-    <div class="v-stat"><div class="v-stat-num">{tr}</div><div class="v-stat-label">기온 범위</div></div>
+    <div class="v-stat"><div class="v-stat-num">{noon_temp or "-"}</div><div class="v-stat-label">12시 기온</div></div>
     <div class="v-stat"><div class="v-stat-num" style="color:{rc(mrain)}">{mrain if mrain is not None else "-"}%</div><div class="v-stat-label">강수확률 (최대)</div></div>
-    {"<div class='v-stat'><div class='v-stat-num'>" + wind_str + "</div><div class='v-stat-label'>바람</div></div>" if wind_str else ""}
+    <div class="v-stat"><div class="v-stat-num">{wind_str or "-"}</div><div class="v-stat-label">바람</div></div>
+    <div class="v-stat"><div class="v-stat-num">{humidity_str or "-"}</div><div class="v-stat-label">습도</div></div>
   </div>
   {"<div class='v-advice'>" + tadvice + "</div>" if tadvice else ""}
 </div>
@@ -720,6 +739,8 @@ class handler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", "public, max-age=1800")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(html.encode("utf-8"))
