@@ -704,10 +704,91 @@ body{{
 {hhtml}
 {chtml}
 
+<section class="card" id="trend-section" style="display:none">
+  <h3>📈 예보 변화 추적</h3>
+  <div id="trend-summary" style="font-size:14px;font-weight:600;margin-bottom:12px"></div>
+  <div id="trend-table"></div>
+  <div style="font-size:10px;color:var(--tx3);margin-top:10px;text-align:center">
+    이 기기에서 확인할 때마다 자동 기록 · 최근 20회
+  </div>
+</section>
+
 <div class="footer">
   탭을 열어두면 <b>3시간마다 자동 새로고침</b>돼요<br>
   매번 열 때마다 3개 소스에서 실시간 수집
 </div>
+
+<script>
+(function(){{
+  var KEY = "wedding_weather_history";
+  var cur = {{
+    ts: "{now}",
+    kma: {kd["rain_prob"] if kd and kd.get("rain_prob") is not None else "null"},
+    accu: {ad["rain_prob"] if ad and ad.get("rain_prob") is not None else "null"},
+    naver: {nd["rain_prob"] if nd and nd.get("rain_prob") is not None else "null"}
+  }};
+
+  try {{
+    var hist = JSON.parse(localStorage.getItem(KEY) || "[]");
+
+    // 같은 시간(분 단위) 중복 방지 — 최소 30분 간격
+    var dominated = hist.length > 0 && hist[0].ts === cur.ts;
+    if (!dominated) {{
+      hist.unshift(cur);
+      if (hist.length > 20) hist = hist.slice(0, 20);
+      localStorage.setItem(KEY, JSON.stringify(hist));
+    }}
+
+    if (hist.length < 2) return;
+
+    // 트렌드 섹션 표시
+    var sec = document.getElementById("trend-section");
+    sec.style.display = "";
+
+    // 요약: 가장 최근 vs 이전
+    var prev = hist[1];
+    var vals = ["kma","accu","naver"];
+    var names = ["기상청","AccuW.","네이버"];
+    var changes = [];
+    for (var i = 0; i < 3; i++) {{
+      var c = cur[vals[i]], p = prev[vals[i]];
+      if (c !== null && p !== null && c !== p) {{
+        var diff = c - p;
+        var arrow = diff > 0 ? "↑" : "↓";
+        var color = diff > 0 ? "#C05746" : "#4A7C59";
+        changes.push("<span style='color:" + color + "'>" + names[i] + " " + arrow + Math.abs(diff) + "%</span>");
+      }}
+    }}
+
+    var sumEl = document.getElementById("trend-summary");
+    if (changes.length > 0) {{
+      sumEl.innerHTML = "이전 대비: " + changes.join(" · ");
+    }} else {{
+      sumEl.innerHTML = "<span style='color:var(--tx3)'>이전과 동일한 예보</span>";
+    }}
+
+    // 히스토리 테이블
+    var tbl = "<table style='width:100%;font-size:11px;border-collapse:collapse'>";
+    tbl += "<tr style='color:var(--tx3)'><th style='text-align:left;padding:4px;font-weight:600'>시간</th>";
+    tbl += "<th style='padding:4px'>기상청</th><th style='padding:4px'>AccuW.</th><th style='padding:4px'>네이버</th></tr>";
+    var show = Math.min(hist.length, 8);
+    for (var j = 0; j < show; j++) {{
+      var h = hist[j];
+      var bold = j === 0 ? "font-weight:700" : "color:var(--tx2)";
+      var label = j === 0 ? "지금" : h.ts;
+      tbl += "<tr style='" + bold + "'>";
+      tbl += "<td style='padding:4px 4px;font-size:10px'>" + label + "</td>";
+      for (var k = 0; k < 3; k++) {{
+        var v = h[vals[k]];
+        tbl += "<td style='padding:4px;text-align:center'>" + (v !== null ? v + "%" : "-") + "</td>";
+      }}
+      tbl += "</tr>";
+    }}
+    tbl += "</table>";
+    document.getElementById("trend-table").innerHTML = tbl;
+  }} catch(e) {{}}
+}})();
+</script>
 </body>
 </html>'''
 
