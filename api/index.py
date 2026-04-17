@@ -704,18 +704,21 @@ body{{
 {hhtml}
 {chtml}
 
-<section class="card" id="trend-section" style="display:none">
+<section class="card" id="trend-section">
   <h3>📈 예보 변화 추적</h3>
-  <div id="trend-summary" style="font-size:14px;font-weight:600;margin-bottom:12px"></div>
-  <div id="trend-table"></div>
+  <div id="trend-content">
+    <div style="text-align:center;padding:8px 0;color:var(--tx3);font-size:13px">
+      첫 방문이에요! 다음에 다시 열면<br>예보가 어떻게 바뀌었는지 보여드려요
+    </div>
+  </div>
   <div style="font-size:10px;color:var(--tx3);margin-top:10px;text-align:center">
-    이 기기에서 확인할 때마다 자동 기록 · 최근 20회
+    열 때마다 자동 기록 · 최근 20회 저장
   </div>
 </section>
 
 <div class="footer">
-  탭을 열어두면 <b>3시간마다 자동 새로고침</b>돼요<br>
-  매번 열 때마다 3개 소스에서 실시간 수집
+  열 때마다 3개 소스에서 <b>실시간 데이터 수집</b><br>
+  예보가 바뀌었는지 궁금하면 다시 열어보세요
 </div>
 
 <script>
@@ -741,14 +744,13 @@ body{{
 
     if (hist.length < 2) return;
 
-    // 트렌드 섹션 표시
-    var sec = document.getElementById("trend-section");
-    sec.style.display = "";
+    // 2회차 이상: 트렌드 콘텐츠 교체
+    var content = document.getElementById("trend-content");
+    var vals = ["kma","accu","naver"];
+    var names = ["기상청","AccuW.","네이버"];
 
     // 요약: 가장 최근 vs 이전
     var prev = hist[1];
-    var vals = ["kma","accu","naver"];
-    var names = ["기상청","AccuW.","네이버"];
     var changes = [];
     for (var i = 0; i < 3; i++) {{
       var c = cur[vals[i]], p = prev[vals[i]];
@@ -760,11 +762,11 @@ body{{
       }}
     }}
 
-    var sumEl = document.getElementById("trend-summary");
+    var summary = "";
     if (changes.length > 0) {{
-      sumEl.innerHTML = "이전 대비: " + changes.join(" · ");
+      summary = "<div style='font-size:14px;font-weight:600;margin-bottom:12px'>이전 대비: " + changes.join(" · ") + "</div>";
     }} else {{
-      sumEl.innerHTML = "<span style='color:var(--tx3)'>이전과 동일한 예보</span>";
+      summary = "<div style='font-size:13px;color:var(--tx3);margin-bottom:12px'>이전과 동일한 예보</div>";
     }}
 
     // 히스토리 테이블
@@ -777,7 +779,7 @@ body{{
       var bold = j === 0 ? "font-weight:700" : "color:var(--tx2)";
       var label = j === 0 ? "지금" : h.ts;
       tbl += "<tr style='" + bold + "'>";
-      tbl += "<td style='padding:4px 4px;font-size:10px'>" + label + "</td>";
+      tbl += "<td style='padding:4px;font-size:10px'>" + label + "</td>";
       for (var k = 0; k < 3; k++) {{
         var v = h[vals[k]];
         tbl += "<td style='padding:4px;text-align:center'>" + (v !== null ? v + "%" : "-") + "</td>";
@@ -785,7 +787,8 @@ body{{
       tbl += "</tr>";
     }}
     tbl += "</table>";
-    document.getElementById("trend-table").innerHTML = tbl;
+
+    content.innerHTML = summary + tbl;
   }} catch(e) {{}}
 }})();
 </script>
