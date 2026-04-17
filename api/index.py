@@ -277,37 +277,56 @@ def rc(prob):
 
 
 def verdict(max_rain):
-    if max_rain is None: return ("데이터 수집 중...", "#aaa", "#f5f5f5")
-    if max_rain <= 20: return ("야외 결혼식 걱정 없어요!", "#4A7C59", "#EDF5EE")
-    if max_rain <= 40: return ("대체로 괜찮지만 우산 준비", "#7CA95B", "#F2F7EE")
-    if max_rain <= 60: return ("비 올 수 있어요, 대비 필요", "#D4943A", "#FDF5ED")
-    return ("비 올 확률 높아요!", "#C05746", "#FDEEEB")
+    if max_rain is None:
+        return ("데이터 수집 중...", "잠시만 기다려주세요", "#aaa", "#f5f5f5")
+    if max_rain <= 20:
+        return ("야외 결혼식 걱정 없어요!", "하늘도 축복하는 날이네요 ✨", "#4A7C59", "#EDF5EE")
+    if max_rain <= 40:
+        return ("대체로 괜찮아요!", "혹시 모르니 우산 몇 개만 준비해두세요 ☂️", "#7CA95B", "#F2F7EE")
+    if max_rain <= 60:
+        return ("비 올 수도 있어요", "실내 백업 플랜 확인해두세요 🏠", "#D4943A", "#FDF5ED")
+    return ("비 올 확률 높아요", "우천 시 플랜B 가동! 💪", "#C05746", "#FDEEEB")
+
+
+def temp_advice(lo, hi):
+    if lo is None or hi is None:
+        return ""
+    avg = (lo + hi) / 2
+    if avg < 10: return "코트 필수! 따뜻하게 입으세요 🧥"
+    if avg < 15: return "자켓이나 가디건 챙기세요 🧣"
+    if avg < 20: return "가벼운 겉옷이면 딱이에요 👌"
+    if avg < 25: return "야외 활동 최적 온도! ☀️"
+    return "시원한 옷차림 추천 🌿"
 
 
 def cell(data, key, fmt="{}"):
     if data and data.get(key) is not None:
         v = data[key]
         return fmt.format(int(v) if isinstance(v, float) and v == int(v) else v)
-    return '<span style="color:#ccc">-</span>'
+    return '<span style="color:#ddd">-</span>'
 
 
 def render(openmeteo, naver, accuweather, kma):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now().strftime("%m/%d %H:%M")
     dday_str = d_day()
+    dday_num = (date.fromisoformat(WEDDING_DATE) - date.today()).days
 
     kd = kma["data"] if kma and kma["success"] else None
     ad = accuweather["data"] if accuweather and accuweather["success"] else None
     nd = naver["data"] if naver and naver["success"] else None
-    srcs = [("기상청", "날씨날씨", kd, LINKS["kma"]),
-            ("AccuWeather", "의왕시", ad, LINKS["accuweather"]),
-            ("네이버", "의왕시", nd, LINKS["naver"])]
+    srcs = [("기상청", kd, LINKS["kma"]),
+            ("AccuWeather", ad, LINKS["accuweather"]),
+            ("네이버", nd, LINKS["naver"])]
 
-    rains = [s[2]["rain_prob"] for s in srcs if s[2] and s[2].get("rain_prob") is not None]
-    tlo = [s[2]["temp_min"] for s in srcs if s[2] and s[2].get("temp_min") is not None]
-    thi = [s[2]["temp_max"] for s in srcs if s[2] and s[2].get("temp_max") is not None]
+    rains = [s[1]["rain_prob"] for s in srcs if s[1] and s[1].get("rain_prob") is not None]
+    tlo = [s[1]["temp_min"] for s in srcs if s[1] and s[1].get("temp_min") is not None]
+    thi = [s[1]["temp_max"] for s in srcs if s[1] and s[1].get("temp_max") is not None]
     mrain = max(rains) if rains else (openmeteo["rain_prob"] if openmeteo else None)
-    vt, vc, vb = verdict(mrain)
-    tr = f"{min(tlo):.0f}° ~ {max(thi):.0f}°C" if tlo and thi else ("-" if not openmeteo else f"{openmeteo['temp_min']:.0f}° ~ {openmeteo['temp_max']:.0f}°C")
+    vt, vsub, vc, vb = verdict(mrain)
+    lo = min(tlo) if tlo else (openmeteo["temp_min"] if openmeteo else None)
+    hi = max(thi) if thi else (openmeteo["temp_max"] if openmeteo else None)
+    tr = f"{lo:.0f}° ~ {hi:.0f}°C" if lo is not None and hi is not None else "-"
+    tadvice = temp_advice(lo, hi) if lo is not None else ""
 
     wind_str = ""
     if openmeteo and openmeteo.get("hours"):
@@ -315,142 +334,316 @@ def render(openmeteo, naver, accuweather, kma):
         if h12:
             wind_str = f'{h12["wind"]:.0f}km/h'
 
+    # Source count
+    ok_count = sum(1 for _, d, _ in srcs if d)
+
     # Rain bars
     bars = ""
-    for nm, _, dt, _ in srcs:
+    for nm, dt, _ in srcs:
         rp = dt["rain_prob"] if dt and dt.get("rain_prob") is not None else None
         if rp is not None:
-            bars += f'<div class="bar-row"><span class="bar-label">{nm}</span><div class="bar-track"><div class="bar-fill" style="width:{max(rp,2)}%;background:{rc(rp)}"></div></div><span class="bar-value" style="color:{rc(rp)}">{rp}%</span></div>'
+            bars += f'''<div class="bar-row">
+              <span class="bar-label">{nm}</span>
+              <div class="bar-track"><div class="bar-fill" style="width:{max(rp,3)}%;background:{rc(rp)}"></div></div>
+              <span class="bar-val" style="color:{rc(rp)}">{rp}%</span>
+            </div>'''
         else:
-            bars += f'<div class="bar-row"><span class="bar-label">{nm}</span><div class="bar-track"></div><span class="bar-value" style="color:#aaa">-</span></div>'
+            bars += f'''<div class="bar-row">
+              <span class="bar-label">{nm}</span>
+              <div class="bar-track"><div class="bar-fill" style="width:0"></div></div>
+              <span class="bar-val" style="color:#ccc">-</span>
+            </div>'''
 
     # Hourly
     hhtml = ""
     if openmeteo and openmeteo.get("hours"):
         hc = ""
         for h in openmeteo["hours"]:
-            hl = "hour-hl" if h["hour"] in (12, 13) else ""
-            hc += f'<div class="hcell {hl}"><div class="h-time">{h["hour"]}시</div><div class="h-icon">{h["emoji"]}</div><div class="h-temp">{h["temp"]:.0f}°</div><div class="h-rain" style="color:{rc(h["rain_prob"])}">{h["rain_prob"]}%</div><div class="h-extra">{h["wind"]:.0f}km/h</div><div class="h-extra">{h["humidity"]}%</div></div>'
-        hhtml = f'<section class="card"><h3>결혼식 시간대 <span class="badge">Open-Meteo</span></h3><div class="hscroll">{hc}</div></section>'
+            hl = "hcell-hl" if h["hour"] in (12, 13) else ""
+            hc += f'''<div class="hcell {hl}">
+              <div class="hc-t">{h["hour"]}시</div>
+              <div class="hc-i">{h["emoji"]}</div>
+              <div class="hc-tmp">{h["temp"]:.0f}°</div>
+              <div class="hc-r" style="color:{rc(h["rain_prob"])}">{h["rain_prob"]}%</div>
+              <div class="hc-w">{h["wind"]:.0f}<span>km/h</span></div>
+            </div>'''
+        hhtml = f'''<section class="card">
+          <h3>결혼식 시간대 <span class="tag">Open-Meteo</span></h3>
+          <div class="hscroll">{hc}</div>
+          <div class="hscroll-hint">← 좌우 스크롤 →</div>
+        </section>'''
 
     # Context days
     chtml = ""
     if openmeteo and openmeteo.get("context_days"):
         cc = ""
         for cd in openmeteo["context_days"]:
-            w = "ctx-w" if cd["date"] == WEDDING_DATE else ""
-            cc += f'<div class="ctx {w}"><div class="ctx-d">4/{cd["day"]}{"(토)" if cd["date"] == WEDDING_DATE else ""}</div><div class="ctx-i">{cd["emoji"]}</div><div class="ctx-t">{cd["temp_min"]:.0f}°/{cd["temp_max"]:.0f}°</div><div class="ctx-r" style="color:{rc(cd["rain_prob"])}">{cd["rain_prob"]}%</div></div>'
-        chtml = f'<section class="card"><h3>전후 날씨 흐름 <span class="badge">Open-Meteo</span></h3><div class="ctx-row">{cc}</div></section>'
+            w = "cday-w" if cd["date"] == WEDDING_DATE else ""
+            lbl = "결혼식!" if cd["date"] == WEDDING_DATE else f'4/{cd["day"]}'
+            cc += f'''<div class="cday {w}">
+              <div class="cd-d">{lbl}</div>
+              <div class="cd-i">{cd["emoji"]}</div>
+              <div class="cd-t">{cd["temp_min"]:.0f}°/{cd["temp_max"]:.0f}°</div>
+              <div class="cd-r" style="color:{rc(cd["rain_prob"])}">{cd["rain_prob"]}%</div>
+            </div>'''
+        chtml = f'''<section class="card">
+          <h3>전후 날씨 흐름 <span class="tag">Open-Meteo</span></h3>
+          <div class="cday-row">{cc}</div>
+        </section>'''
 
     return f'''<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="refresh" content="10800">
+<meta name="theme-color" content="#3D6B4D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>결혼식 날씨 {dday_str}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-:root{{--bg:#FAF9F6;--sf:#fff;--tx:#2C2C2C;--tx2:#888;--tx3:#bbb;--bd:#EDEBE8;--acc:#4A7C59;--sh:0 1px 4px rgba(0,0,0,.05);--r:14px}}
-body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;background:var(--bg);color:var(--tx);line-height:1.5;max-width:430px;margin:0 auto;padding-bottom:env(safe-area-inset-bottom,20px);-webkit-font-smoothing:antialiased}}
-.hdr{{background:linear-gradient(160deg,#3D6B4D,#5B8E6A 50%,#8AB89A);color:#fff;text-align:center;padding:28px 20px 24px;position:relative;overflow:hidden}}
-.hdr::after{{content:"";position:absolute;bottom:-30px;left:-20px;right:-20px;height:60px;background:var(--bg);border-radius:50% 50% 0 0}}
-.hdr-d{{font-size:14px;opacity:.8;letter-spacing:.5px}}
-.hdr-dday{{font-size:42px;font-weight:800;margin:4px 0;letter-spacing:-2px}}
-.hdr-info{{font-size:13px;opacity:.75}}
-.verdict{{background:{vb};border:1px solid {vc}22;margin:0 16px;border-radius:var(--r);padding:24px 20px;text-align:center;position:relative;z-index:1;margin-top:-16px;box-shadow:var(--sh)}}
-.v-msg{{font-size:20px;font-weight:700;color:{vc};margin-bottom:8px}}
-.v-detail{{display:flex;justify-content:center;gap:20px;font-size:15px;color:var(--tx)}}
-.v-detail span{{display:flex;align-items:center;gap:4px}}
-.v-detail .v-num{{font-weight:700}}
-.card{{background:var(--sf);margin:12px 16px;border-radius:var(--r);padding:18px;box-shadow:var(--sh)}}
-.card h3{{font-size:13px;color:var(--tx2);font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:6px}}
-.badge{{font-size:10px;background:var(--bg);color:var(--tx3);padding:2px 6px;border-radius:4px;font-weight:500}}
-.bar-row{{display:flex;align-items:center;gap:10px;margin-bottom:10px}}
+:root{{
+  --bg:#F7F6F3;--sf:#fff;--tx:#1A1A1A;--tx2:#6B6B6B;--tx3:#A8A8A8;
+  --bd:#E8E6E1;--acc:#3D6B4D;--acc-l:#EDF5EE;
+  --sh:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.03);
+  --r:16px;
+}}
+body{{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,"Noto Sans KR",sans-serif;
+  background:var(--bg);color:var(--tx);line-height:1.5;
+  max-width:440px;margin:0 auto;
+  padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));
+  -webkit-font-smoothing:antialiased;
+}}
+
+/* ===== Header ===== */
+.hdr{{
+  background:linear-gradient(165deg,#2D5A3D 0%,#4A7C59 40%,#6B9E7A 100%);
+  color:#fff;text-align:center;
+  padding:36px 24px 52px;
+  position:relative;
+}}
+.hdr::after{{
+  content:"";position:absolute;bottom:0;left:0;right:0;height:24px;
+  background:var(--bg);border-radius:24px 24px 0 0;
+}}
+.hdr-venue{{
+  font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+  opacity:.7;font-weight:600;
+}}
+.hdr-dday{{
+  font-size:56px;font-weight:900;margin:6px 0 2px;
+  letter-spacing:-3px;line-height:1;
+}}
+.hdr-date{{font-size:14px;opacity:.85;font-weight:500}}
+.hdr-addr{{font-size:11px;opacity:.55;margin-top:4px}}
+
+/* ===== Verdict ===== */
+.verdict{{
+  background:{vb};
+  border:1.5px solid {vc}20;
+  margin:-12px 16px 0;border-radius:var(--r);
+  padding:22px 20px 18px;text-align:center;
+  position:relative;z-index:2;
+  box-shadow:var(--sh);
+}}
+.v-emoji{{font-size:36px;margin-bottom:6px}}
+.v-msg{{font-size:19px;font-weight:700;color:{vc};line-height:1.3}}
+.v-sub{{font-size:13px;color:{vc}CC;margin-top:4px;font-weight:500}}
+.v-stats{{
+  display:flex;justify-content:center;gap:16px;
+  margin-top:14px;padding-top:14px;
+  border-top:1px solid {vc}15;
+}}
+.v-stat{{text-align:center}}
+.v-stat-num{{font-size:18px;font-weight:800;color:var(--tx)}}
+.v-stat-label{{font-size:10px;color:var(--tx2);font-weight:500;margin-top:1px}}
+.v-advice{{
+  font-size:12px;color:var(--tx2);margin-top:12px;
+  font-weight:500;font-style:italic;
+}}
+
+/* ===== Card ===== */
+.card{{
+  background:var(--sf);margin:14px 16px;border-radius:var(--r);
+  padding:20px;box-shadow:var(--sh);
+}}
+.card h3{{
+  font-size:13px;color:var(--tx2);font-weight:700;
+  margin-bottom:16px;display:flex;align-items:center;gap:8px;
+  letter-spacing:-.2px;
+}}
+.tag{{
+  font-size:9px;background:var(--bg);color:var(--tx3);
+  padding:2px 7px;border-radius:6px;font-weight:600;
+  letter-spacing:.3px;
+}}
+
+/* ===== Rain Bars ===== */
+.bar-row{{display:flex;align-items:center;gap:10px;margin-bottom:12px}}
 .bar-row:last-child{{margin-bottom:0}}
-.bar-label{{font-size:13px;font-weight:600;width:72px;flex-shrink:0}}
-.bar-track{{flex:1;height:20px;background:#F0EEEB;border-radius:10px;overflow:hidden}}
-.bar-fill{{height:100%;border-radius:10px;transition:width .6s ease}}
-.bar-value{{font-size:15px;font-weight:700;width:40px;text-align:right;flex-shrink:0}}
-.cmp{{width:100%;border-collapse:collapse;font-size:13px}}
-.cmp th{{font-weight:600;color:var(--tx2);padding:6px 4px;text-align:center;border-bottom:1px solid var(--bd);font-size:12px}}
-.cmp th:first-child{{text-align:left;color:var(--tx3);width:52px}}
-.cmp td{{padding:8px 4px;text-align:center;font-weight:600}}
+.bar-label{{font-size:12px;font-weight:600;width:78px;flex-shrink:0;color:var(--tx2)}}
+.bar-track{{flex:1;height:24px;background:#F0EEEB;border-radius:12px;overflow:hidden}}
+.bar-fill{{height:100%;border-radius:12px;transition:width .8s cubic-bezier(.22,1,.36,1)}}
+.bar-val{{font-size:16px;font-weight:800;width:42px;text-align:right;flex-shrink:0}}
+
+/* ===== Comparison Table ===== */
+.cmp{{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}}
+.cmp th{{
+  font-weight:700;color:var(--tx2);padding:8px 6px;text-align:center;
+  border-bottom:2px solid var(--bd);font-size:12px;
+}}
+.cmp th:first-child{{text-align:left;color:var(--tx3);width:48px;font-weight:600}}
+.cmp td{{
+  padding:10px 6px;text-align:center;font-weight:600;
+  border-bottom:1px solid #f5f3f0;
+}}
 .cmp td:first-child{{text-align:left;font-weight:500;color:var(--tx2);font-size:12px}}
-.cmp .rain-cell{{font-size:15px}}
-.src-links{{display:flex;gap:6px;margin-top:14px}}
-.src-link{{flex:1;text-align:center;padding:10px 4px;background:var(--bg);border-radius:10px;text-decoration:none;font-size:12px;font-weight:600;color:#3D6B4D;transition:background .2s}}
-.src-link:active{{background:#e0e0d8}}
-.hscroll{{display:flex;gap:3px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}}
-.hcell{{flex:0 0 auto;width:56px;text-align:center;padding:8px 4px;border-radius:10px;background:var(--bg);scroll-snap-align:center}}
-.hour-hl{{background:#FFF9EB;outline:2px solid #E8B931}}
-.h-time{{font-size:11px;font-weight:600;color:var(--tx2)}}
-.h-icon{{font-size:18px;margin:3px 0}}
-.h-temp{{font-size:15px;font-weight:700}}
-.h-rain{{font-size:12px;font-weight:600}}
-.h-extra{{font-size:10px;color:var(--tx3)}}
-.ctx-row{{display:flex;gap:4px;justify-content:center}}
-.ctx{{flex:0 0 auto;min-width:60px;text-align:center;padding:10px 6px;border-radius:10px;background:var(--bg)}}
-.ctx-w{{background:#FFF9EB;outline:2px solid #E8B931;font-weight:600}}
-.ctx-d{{font-size:12px;font-weight:600}}
-.ctx-i{{font-size:20px;margin:3px 0}}
-.ctx-t{{font-size:12px}}
-.ctx-r{{font-size:12px;font-weight:600}}
-.footer{{text-align:center;padding:20px 16px 8px;font-size:11px;color:var(--tx3)}}
+.cmp tr:last-child td{{border-bottom:none}}
+.cmp .rain-cell{{font-size:16px;font-weight:800}}
+.src-links{{display:flex;gap:8px;margin-top:16px}}
+.src-link{{
+  flex:1;text-align:center;padding:11px 6px;
+  background:var(--acc-l);border-radius:12px;text-decoration:none;
+  font-size:12px;font-weight:700;color:var(--acc);
+  transition:all .15s;border:1px solid transparent;
+}}
+.src-link:active{{background:#d8eadb;border-color:var(--acc)33}}
+
+/* ===== Hourly ===== */
+.hscroll{{
+  display:flex;gap:6px;overflow-x:auto;
+  padding:4px 2px 6px;margin:0 -2px;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+  scrollbar-width:none;
+}}
+.hscroll::-webkit-scrollbar{{display:none}}
+.hscroll-hint{{
+  text-align:center;font-size:10px;color:var(--tx3);
+  margin-top:6px;font-weight:500;
+}}
+.hcell{{
+  flex:0 0 auto;width:60px;text-align:center;
+  padding:10px 6px 8px;border-radius:14px;
+  background:var(--bg);scroll-snap-align:center;
+  transition:transform .15s;
+}}
+.hcell:active{{transform:scale(.96)}}
+.hcell-hl{{
+  background:linear-gradient(180deg,#FFF8E7,#FFF3D6);
+  box-shadow:0 0 0 2px #E8B931,inset 0 1px 0 rgba(255,255,255,.5);
+}}
+.hc-t{{font-size:11px;font-weight:700;color:var(--tx2)}}
+.hc-i{{font-size:22px;margin:4px 0 2px}}
+.hc-tmp{{font-size:17px;font-weight:800;letter-spacing:-.5px}}
+.hc-r{{font-size:12px;font-weight:700;margin-top:1px}}
+.hc-w{{font-size:10px;color:var(--tx3);margin-top:2px}}
+.hc-w span{{font-size:8px}}
+
+/* ===== Context Days ===== */
+.cday-row{{display:flex;gap:6px;justify-content:center}}
+.cday{{
+  flex:1;min-width:0;text-align:center;
+  padding:12px 4px;border-radius:14px;background:var(--bg);
+}}
+.cday-w{{
+  background:linear-gradient(180deg,#FFF8E7,#FFF3D6);
+  box-shadow:0 0 0 2px #E8B931;
+}}
+.cd-d{{font-size:11px;font-weight:700;color:var(--tx2)}}
+.cday-w .cd-d{{color:#B8890F}}
+.cd-i{{font-size:22px;margin:4px 0 2px}}
+.cd-t{{font-size:12px;font-weight:600}}
+.cd-r{{font-size:12px;font-weight:700}}
+
+/* ===== Footer ===== */
+.refresh-btn{{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  margin:14px 16px;padding:14px;
+  background:var(--sf);border-radius:var(--r);box-shadow:var(--sh);
+  font-size:14px;font-weight:700;color:var(--acc);
+  text-decoration:none;transition:all .15s;
+  border:1px solid transparent;
+}}
+.refresh-btn:active{{background:var(--acc-l);border-color:var(--acc)22}}
+.footer{{
+  text-align:center;padding:16px 16px 8px;
+  font-size:11px;color:var(--tx3);line-height:1.6;
+}}
 .footer b{{color:var(--tx2);font-weight:600}}
-.refresh-btn{{display:block;margin:12px 16px;padding:14px;text-align:center;background:var(--sf);border-radius:var(--r);box-shadow:var(--sh);font-size:14px;font-weight:600;color:var(--acc);text-decoration:none;transition:background .2s}}
-.refresh-btn:active{{background:#f0f0ec}}
+.status-dot{{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:#4A7C59;margin-right:4px;vertical-align:middle;
+}}
 </style>
 </head>
 <body>
+
 <header class="hdr">
-  <div class="hdr-d">{WEDDING_LOCATION} · 야외 결혼식</div>
+  <div class="hdr-venue">{WEDDING_LOCATION} &middot; 야외 결혼식</div>
   <div class="hdr-dday">{dday_str}</div>
-  <div class="hdr-info">{WEDDING_DATE} ({WEDDING_DAY_KR}) {WEDDING_TIME} · {WEDDING_ADDRESS}</div>
+  <div class="hdr-date">{WEDDING_DATE} ({WEDDING_DAY_KR}) {WEDDING_TIME}</div>
+  <div class="hdr-addr">{WEDDING_ADDRESS}</div>
 </header>
 
 <div class="verdict">
+  <div class="v-emoji">{"☀️" if mrain is not None and mrain <= 20 else "⛅" if mrain is not None and mrain <= 40 else "🌧️" if mrain is not None and mrain <= 60 else "⛈️" if mrain is not None else "🔄"}</div>
   <div class="v-msg">{vt}</div>
-  <div class="v-detail">
-    <span>&#x1F321;&#xFE0F; <span class="v-num">{tr}</span></span>
-    <span>&#x2614; <span class="v-num">{mrain if mrain is not None else "-"}%</span></span>
-    {"<span>&#x1F4A8; <span class='v-num'>" + wind_str + "</span></span>" if wind_str else ""}
+  <div class="v-sub">{vsub}</div>
+  <div class="v-stats">
+    <div class="v-stat"><div class="v-stat-num">{tr}</div><div class="v-stat-label">기온 범위</div></div>
+    <div class="v-stat"><div class="v-stat-num" style="color:{rc(mrain)}">{mrain if mrain is not None else "-"}%</div><div class="v-stat-label">강수확률 (최대)</div></div>
+    {"<div class='v-stat'><div class='v-stat-num'>" + wind_str + "</div><div class='v-stat-label'>바람</div></div>" if wind_str else ""}
   </div>
+  {"<div class='v-advice'>" + tadvice + "</div>" if tadvice else ""}
 </div>
 
 <section class="card">
-  <h3>강수확률 비교</h3>
+  <h3>☔ 강수확률 비교</h3>
   {bars}
 </section>
 
 <section class="card">
-  <h3>소스별 비교</h3>
+  <h3>📊 소스별 비교</h3>
   <table class="cmp">
-    <tr><th></th><th>기상청<br><span style="font-weight:400;font-size:10px">날씨날씨</span></th><th>AccuW.</th><th>네이버</th></tr>
+    <tr>
+      <th></th>
+      <th>기상청<br><span style="font-weight:400;font-size:10px;color:var(--tx3)">날씨날씨</span></th>
+      <th>AccuW.</th>
+      <th>네이버</th>
+    </tr>
     <tr><td>최저</td><td>{cell(kd,"temp_min","{}°")}</td><td>{cell(ad,"temp_min","{}°")}</td><td>{cell(nd,"temp_min","{}°")}</td></tr>
     <tr><td>최고</td><td>{cell(kd,"temp_max","{}°")}</td><td>{cell(ad,"temp_max","{}°")}</td><td>{cell(nd,"temp_max","{}°")}</td></tr>
     <tr><td>강수</td>
-      <td class="rain-cell" style="color:{rc(kd['rain_prob']) if kd and kd.get('rain_prob') is not None else '#aaa'}">{cell(kd,"rain_prob","{}%")}</td>
-      <td class="rain-cell" style="color:{rc(ad['rain_prob']) if ad and ad.get('rain_prob') is not None else '#aaa'}">{cell(ad,"rain_prob","{}%")}</td>
-      <td class="rain-cell" style="color:{rc(nd['rain_prob']) if nd and nd.get('rain_prob') is not None else '#aaa'}">{cell(nd,"rain_prob","{}%")}</td>
+      <td class="rain-cell" style="color:{rc(kd['rain_prob']) if kd and kd.get('rain_prob') is not None else '#ccc'}">{cell(kd,"rain_prob","{}%")}</td>
+      <td class="rain-cell" style="color:{rc(ad['rain_prob']) if ad and ad.get('rain_prob') is not None else '#ccc'}">{cell(ad,"rain_prob","{}%")}</td>
+      <td class="rain-cell" style="color:{rc(nd['rain_prob']) if nd and nd.get('rain_prob') is not None else '#ccc'}">{cell(nd,"rain_prob","{}%")}</td>
     </tr>
-    <tr><td>하늘</td><td style="font-size:11px">{cell(kd,"condition")}</td><td style="font-size:11px">{cell(ad,"condition")}</td><td style="font-size:11px">{cell(nd,"condition")}</td></tr>
+    <tr><td>하늘</td>
+      <td style="font-size:11px">{cell(kd,"condition")}</td>
+      <td style="font-size:11px">{cell(ad,"condition")}</td>
+      <td style="font-size:11px">{cell(nd,"condition")}</td>
+    </tr>
   </table>
   <div class="src-links">
-    <a class="src-link" href="{LINKS['kma']}" target="_blank">기상청 &rarr;</a>
-    <a class="src-link" href="{LINKS['accuweather']}" target="_blank">AccuWeather &rarr;</a>
-    <a class="src-link" href="{LINKS['naver']}" target="_blank">네이버 &rarr;</a>
+    <a class="src-link" href="{LINKS['kma']}" target="_blank">기상청</a>
+    <a class="src-link" href="{LINKS['accuweather']}" target="_blank">AccuWeather</a>
+    <a class="src-link" href="{LINKS['naver']}" target="_blank">네이버</a>
   </div>
 </section>
 
 {hhtml}
 {chtml}
 
-<a class="refresh-btn" href="javascript:location.reload()">&#x1F504; 지금 새로고침</a>
+<a class="refresh-btn" href="javascript:location.reload()">🔄 최신 데이터로 새로고침</a>
 
 <div class="footer">
-  마지막 업데이트 <b>{now} KST</b><br>
-  3시간마다 자동 새로고침 · 새로고침 시 최신 데이터 수집
+  <span class="status-dot"></span>{ok_count}개 소스 수집 완료 &middot; <b>{now} KST</b><br>
+  새로고침할 때마다 실시간 데이터를 가져와요
 </div>
 </body>
 </html>'''
