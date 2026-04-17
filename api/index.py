@@ -155,31 +155,55 @@ def fetch_naver():
     return {"success": False, "data": None}
 
 
+def _parse_accu(text):
+    """AccuWeather HTML에서 4/25 데이터 추출"""
+    idx = text.find("4/25")
+    if idx == -1:
+        return None
+    cs = text.rfind("<a", max(0, idx - 3000), idx)
+    ce = text.find("daily-forecast-card", idx + 10)
+    if ce == -1:
+        ce = text.find("</a>", idx) + 4
+    card = text[cs:ce]
+    mh = re.search(r'class="high">(\d+)', card)
+    ml = re.search(r'class="low">/(\d+)', card)
+    mp = re.search(r'precip-icon.*?</svg>\s*(\d+)%', card, re.DOTALL)
+    mc = re.search(r'class="phrase">([^<]+)', card)
+    if not mh:
+        return None
+    return {
+        "temp_max": float(mh.group(1)),
+        "temp_min": float(ml.group(1)) if ml else None,
+        "rain_prob": int(mp.group(1)) if mp else None,
+        "condition": html_mod.unescape(mc.group(1).strip()) if mc else None,
+    }
+
+
 def fetch_accuweather():
+    url = LINKS["accuweather_en"]
+    # 시도 1: Chrome 헤더 (로컬 환경에서 작동)
     try:
-        r = requests.get(LINKS["accuweather_en"], headers=ACCU_HEADERS, timeout=8)
-        r.raise_for_status()
-        text = r.text
-        idx = text.find("4/25")
-        if idx == -1:
-            return {"success": False, "data": None}
-        cs = text.rfind("<a", max(0, idx - 3000), idx)
-        ce = text.find("daily-forecast-card", idx + 10)
-        if ce == -1:
-            ce = text.find("</a>", idx) + 4
-        card = text[cs:ce]
-        mh = re.search(r'class="high">(\d+)', card)
-        ml = re.search(r'class="low">/(\d+)', card)
-        mp = re.search(r'precip-icon.*?</svg>\s*(\d+)%', card, re.DOTALL)
-        mc = re.search(r'class="phrase">([^<]+)', card)
-        return {"success": True, "data": {
-            "temp_max": float(mh.group(1)) if mh else None,
-            "temp_min": float(ml.group(1)) if ml else None,
-            "rain_prob": int(mp.group(1)) if mp else None,
-            "condition": html_mod.unescape(mc.group(1).strip()) if mc else None,
-        }}
+        r = requests.get(url, headers=ACCU_HEADERS, timeout=8)
+        if r.status_code == 200:
+            d = _parse_accu(r.text)
+            if d:
+                return {"success": True, "data": d}
     except Exception:
-        return {"success": False, "data": None}
+        pass
+    # 시도 2: Googlebot UA (클라우드 환경 폴백 - SEO 크롤러로 인식)
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)",
+        })
+        resp = urllib.request.urlopen(req, timeout=8)
+        text = resp.read().decode("utf-8", errors="replace")
+        d = _parse_accu(text)
+        if d:
+            return {"success": True, "data": d}
+    except Exception:
+        pass
+    return {"success": False, "data": None}
 
 
 def fetch_kma():
@@ -560,6 +584,21 @@ body{{
 .cd-t{{font-size:12px;font-weight:600}}
 .cd-r{{font-size:12px;font-weight:700}}
 
+/* ===== Update Bar (top) ===== */
+.ubar{{
+  display:flex;align-items:center;justify-content:space-between;
+  margin:10px 16px;padding:8px 14px;
+  background:var(--sf);border-radius:10px;box-shadow:var(--sh);
+  font-size:11px;color:var(--tx3);
+}}
+.ubar-status{{display:flex;align-items:center;gap:4px;font-weight:500}}
+.ubar-btn{{
+  font-size:12px;font-weight:700;color:var(--acc);
+  text-decoration:none;padding:4px 10px;border-radius:8px;
+  background:var(--acc-l);transition:all .15s;
+}}
+.ubar-btn:active{{background:#d0e4d3}}
+
 /* ===== Footer ===== */
 .refresh-btn{{
   display:flex;align-items:center;justify-content:center;gap:6px;
@@ -602,6 +641,11 @@ body{{
   {"<div class='v-advice'>" + tadvice + "</div>" if tadvice else ""}
 </div>
 
+<div class="ubar">
+  <span class="ubar-status"><span class="status-dot"></span>{ok_count}개 소스 · {now}</span>
+  <a class="ubar-btn" href="javascript:location.reload()">↻ 새로고침</a>
+</div>
+
 <section class="card">
   <h3>☔ 강수확률 비교</h3>
   {bars}
@@ -639,11 +683,9 @@ body{{
 {hhtml}
 {chtml}
 
-<a class="refresh-btn" href="javascript:location.reload()">🔄 최신 데이터로 새로고침</a>
-
 <div class="footer">
-  <span class="status-dot"></span>{ok_count}개 소스 수집 완료 &middot; <b>{now} KST</b><br>
-  새로고침할 때마다 실시간 데이터를 가져와요
+  탭을 열어두면 <b>3시간마다 자동 새로고침</b>돼요<br>
+  매번 열 때마다 3개 소스에서 실시간 수집
 </div>
 </body>
 </html>'''
