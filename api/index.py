@@ -450,7 +450,7 @@ def render(openmeteo, naver, accuweather, kma):
 <!-- OG (카카오톡, 페이스북 등) -->
 <meta property="og:title" content="🌤️ {WEDDING_LOCATION} 야외 결혼식 날씨 {dday_str}">
 <meta property="og:description" content="{vt} · {noon_temp} · 강수확률 {mrain if mrain is not None else '-'}%">
-<meta property="og:image" content="https://weather-0425.vercel.app/api/og">
+<meta property="og:image" content="https://weather-0425.vercel.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:type" content="website">
@@ -459,7 +459,7 @@ def render(openmeteo, naver, accuweather, kma):
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="🌤️ {WEDDING_LOCATION} 야외 결혼식 날씨 {dday_str}">
 <meta name="twitter:description" content="{vt} · {noon_temp} · 강수확률 {mrain if mrain is not None else '-'}%">
-<meta name="twitter:image" content="https://weather-0425.vercel.app/api/og">
+<meta name="twitter:image" content="https://weather-0425.vercel.app/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
